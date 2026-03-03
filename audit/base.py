@@ -48,21 +48,8 @@ RULES:
 """
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from typing import Optional
 
-
-@dataclass
-class AuditConfig:
-    """
-    Minimal audit config — only the backend name.
-    All other fields belong in the specific backend's from_config().
-    """
-    backend: str = "file"
-
-    def __post_init__(self):
-        if not self.backend or not self.backend.strip():
-            raise ValueError("audit.backend cannot be empty")
 
 
 class AuditBackend(ABC):

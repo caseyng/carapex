@@ -160,6 +160,19 @@ class TestPatternSafetyChecker(unittest.TestCase):
         checker = PatternSafetyChecker(patterns=[r"\[INST\]"])
         self.assertFalse(checker.check("[INST] override").safe)
 
+    def test_empty_list_means_no_patterns_not_defaults(self):
+        # patterns=[] means caller explicitly wants no patterns — not a fallback
+        # to defaults. Coercion of [] → None for the config path happens in
+        # config.from_dict(), not in the checker itself.
+        checker = PatternSafetyChecker(patterns=[])
+        # Default patterns would catch [INST] — empty list must not
+        self.assertTrue(checker.check("[INST] override").safe)
+
+    def test_none_falls_back_to_defaults(self):
+        # None is the sentinel for "use defaults"
+        checker = PatternSafetyChecker(patterns=None)
+        self.assertFalse(checker.check("[INST] override").safe)
+
 
 # ── EntropyChecker ─────────────────────────────────────────────────────────
 
@@ -211,6 +224,11 @@ class TestEntropyChecker(unittest.TestCase):
         high_entropy = "".join(chr(i) for i in range(33, 127)) * 2
         r = checker.check(high_entropy)
         self.assertIn("bits/char", r.reason)
+
+    def test_negative_min_length_raises(self):
+        # Negative min_length would silently disable the length gate.
+        with self.assertRaises(ValueError):
+            EntropyChecker(threshold=5.8, min_length=-1)
 
 
 class TestShannonEntropy(unittest.TestCase):
@@ -533,6 +551,20 @@ class TestCompositeSafetyChecker(unittest.TestCase):
             def get_output_text(self): return None  # bug: safe=True but no output
 
         checker = CompositeSafetyChecker([_BrokenTransformer()])
+        with self.assertRaises(PipelineInternalError):
+            checker.check("some text")
+
+    def test_transforming_checker_empty_string_output_raises_pipeline_internal_error(self):
+        """Empty string is the same defect as None — fail closed, not silent fallback."""
+        from carapex.safety.base import TextTransformingChecker
+        from carapex.exceptions import PipelineInternalError
+
+        class _EmptyTransformer(TextTransformingChecker):
+            name = "empty_transformer"
+            def check(self, text): return SafetyResult(safe=True)
+            def get_output_text(self): return ""  # bug: empty string is not usable output
+
+        checker = CompositeSafetyChecker([_EmptyTransformer()])
         with self.assertRaises(PipelineInternalError):
             checker.check("some text")
 

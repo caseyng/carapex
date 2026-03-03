@@ -89,31 +89,29 @@ class CompositeSafetyChecker(SafetyChecker):
             # all subsequent checkers.
             if isinstance(checker, TextTransformingChecker):
                 transformed = checker.get_output_text()
-                if transformed is None:
-                    # safe=True but no output text — this is a checker
-                    # implementation defect. Fail closed rather than silently
-                    # evaluate the wrong (original) text through subsequent layers.
+                if transformed is None or transformed == "":
+                    # safe=True but no usable output text — checker implementation defect.
+                    # Both None and empty string are the same defect: the transformer
+                    # claimed success but produced nothing for subsequent checkers to
+                    # evaluate. Fail closed rather than silently fall back to the
+                    # original text, which may be untranslated or otherwise unsafe.
                     raise PipelineInternalError(
                         component=checker.name,
                         original=RuntimeError(
-                            f"{checker.name}.get_output_text() returned None after "
-                            f"safe=True. TextTransformingChecker must return output "
-                            f"text on success."
+                            f"{checker.name}.get_output_text() returned "
+                            f"{transformed!r} after safe=True. "
+                            f"TextTransformingChecker must return non-empty "
+                            f"output text on success."
                         ),
                     )
-                if transformed:
-                    working_text = transformed
-                else:
-                    # Empty string — degenerate but not silently wrong.
-                    # Log and continue with original text so pipeline completes.
-                    logger.warning(
-                        "%s returned empty string from get_output_text() after "
-                        "safe=True — using original working text for subsequent checkers",
-                        checker.name,
-                    )
+                working_text = transformed
 
         return SafetyResult(safe=True, failure_mode=None)
 
     def __repr__(self) -> str:
         names = [type(c).__name__ for c in self._checkers]
         return f"CompositeSafetyChecker(checkers={names})"
+
+    def close(self) -> None:
+        for checker in self._checkers:
+            checker.close()

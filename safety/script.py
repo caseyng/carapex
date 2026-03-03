@@ -97,13 +97,6 @@ class ScriptChecker(SafetyChecker):
             )
 
         try:
-            from langdetect.lang_detect_exception import LangDetectException
-        except ImportError:
-            raise ConfigurationError(
-                "langdetect is required. Install: pip install langdetect"
-            )
-
-        try:
             lang = self._detect(text)
             is_english = lang in self._ENGLISH
 

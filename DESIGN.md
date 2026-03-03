@@ -187,7 +187,7 @@ Events and what they carry:
 
 | Event | Key fields |
 |---|---|
-| `carapex_init` | backend, input_checker, output_checker, normaliser |
+| `carapex_init` | backend, input_checker, output_checker, normaliser, debug |
 | `input_normalised` | stable flag, original_length, normalised_length |
 | `input_safety_check` | safe, reason, failure_mode |
 | `llm_call` | success flag |
@@ -254,6 +254,10 @@ The API shape would be `stream=True` on `run()`, returning an iterator of verifi
 **Decoder** — `normaliser/`, subclass `Decoder`. Add name to config. Must be strictly reductive — it must only move text toward canonical form.
 
 **Safety checker** — `safety/`, subclass `SafetyChecker`. Wire into `providers.py`. Checker order is a security decision.
+
+Implement `close()` if your checker holds its own resources (a loaded model, a connection pool, an open file). `CompositeSafetyChecker.close()` propagates to all child checkers automatically. Checkers that hold a reference to an *injected* backend do not call `close()` on it — they do not own the backend's lifecycle. Only checkers that construct their own resources should implement `close()`.
+
+**Backend ownership.** Backends are owned by the composition root (`build()`), not by the checkers that reference them. `Carapex.close()` closes backends after checkers. When a separate guard backend is configured, `Carapex` holds it explicitly for lifecycle management — the guard backend is referenced by multiple checkers; if each called `close()` on it, it would be closed multiple times. Centralised ownership avoids this without reference counting.
 
 Adding any of these requires no changes to existing components. The only file that changes is the relevant registry (for autodiscovered components) or `providers.py` (for safety checkers that need explicit positioning in the pipeline).
 

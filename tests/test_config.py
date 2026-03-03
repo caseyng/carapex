@@ -349,3 +349,56 @@ class TestRegistryDuplicateProtection(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
+
+
+# ── OpenAI backend session lifecycle ──────────────────────────────────────
+
+class TestOpenAIBackendLifecycle(unittest.TestCase):
+
+    def test_close_does_not_raise(self):
+        from carapex.backends.openai_compatible import OpenAICompatibleBackend
+        b = OpenAICompatibleBackend.from_config({
+            "type": "openai_compatible",
+            "base_url": "http://localhost:9999",
+        })
+        try:
+            b.close()
+        except Exception as e:
+            self.fail(f"close() raised unexpectedly: {e}")
+
+    def test_session_exists_at_construction(self):
+        from carapex.backends.openai_compatible import OpenAICompatibleBackend
+        b = OpenAICompatibleBackend.from_config({
+            "type": "openai_compatible",
+            "base_url": "http://localhost:9999",
+        })
+        self.assertTrue(hasattr(b, "_session"))
+        b.close()
+
+
+# ── LlamaCpp health_check ──────────────────────────────────────────────────
+
+class TestLlamaCppHealthCheck(unittest.TestCase):
+
+    def _make_backend(self):
+        """Construct LlamaCppBackend with a stub model, no real llama_cpp needed."""
+        import sys
+        import types
+        import unittest.mock as mock
+
+        # llama_cpp is imported inside __init__ — inject a stub module
+        fake_llama_cpp = types.ModuleType("llama_cpp")
+        fake_llama_cpp.Llama = mock.MagicMock(return_value=object())
+        sys.modules.setdefault("llama_cpp", fake_llama_cpp)
+
+        from carapex.backends.llama_cpp import LlamaCppBackend, LlamaCppConfig
+        return LlamaCppBackend(LlamaCppConfig(model_path="/fake/model.gguf"))
+
+    def test_health_check_true_when_model_loaded(self):
+        b = self._make_backend()
+        self.assertTrue(b.health_check())
+
+    def test_health_check_false_after_close(self):
+        b = self._make_backend()
+        b.close()
+        self.assertFalse(b.health_check())

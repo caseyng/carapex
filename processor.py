@@ -137,6 +137,11 @@ class Carapex:
     ):
         self._system_prompt  = system_prompt
         self._backend        = backend
+        # guard_backend is held here for lifecycle management only — Carapex
+        # owns it when it was constructed separately from the main backend.
+        # The checkers hold a reference to it but do not own its lifecycle.
+        # None when main backend and guard backend are the same instance
+        # (development config) — avoids double-close.
         self._guard_backend  = guard_backend
         self._input_checker  = input_checker
         self._output_checker = output_checker
@@ -287,6 +292,14 @@ class Carapex:
         )
 
     def close(self) -> None:
+        # Close checkers first — they may hold references to backends.
+        # CompositeSafetyChecker.close() propagates to all child checkers,
+        # so any future checker that holds its own resources is covered
+        # without changes here.
+        self._input_checker.close()
+        self._output_checker.close()
+        # Backends closed after checkers — checkers must not call into backends
+        # after this point.
         self._backend.close()
         if self._guard_backend is not None:
             self._guard_backend.close()
@@ -360,6 +373,6 @@ class Carapex:
             tokens_out   = usage.get("completion_tokens")
             tokens_total = usage.get("total_tokens")
             return tokens_in, tokens_out, tokens_total
-        except (AttributeError, TypeError, KeyError) as e:
+        except (AttributeError, TypeError) as e:
             logger.debug("Token usage unavailable from %r: %s", self._backend, e)
             return None, None, None

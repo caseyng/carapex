@@ -62,7 +62,6 @@ class LlamaCppBackend(LLMBackend):
 
         self._cfg        = cfg
         self._last_usage = {}
-        self._llama_cls  = Llama  # retained for type reference
         self._model      = Llama(
             model_path   = cfg.model_path,
             n_threads    = cfg.n_threads,

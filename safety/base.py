@@ -30,11 +30,17 @@ SafetyResult.failure_mode values:
     "translation_failed"        — language detection or translation call failed
     "entropy_exceeded"          — input entropy above threshold
     "normalisation_unstable"    — input did not stabilise (set by processor)
+    "backend_unavailable"       — main LLM returned no response (set by processor)
 
 failure_mode is None for genuine safety violations (pattern match, guard
 refusal, entropy, output pattern) — reason carries the human-readable
 explanation. failure_mode is set only for infrastructure and evaluation
 integrity failures that are distinct from content-based refusals.
+
+Note: "normalisation_unstable" and "backend_unavailable" are set directly
+by processor.py, not by any SafetyChecker. They appear on Response objects
+but never on SafetyResult objects. They are listed here as the complete
+failure_mode vocabulary for callers branching on Response.failure_mode.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 HOW TO ADD A NEW SAFETY CHECKER
@@ -49,7 +55,18 @@ STANDARD CHECKER (evaluates text, does not transform it):
 5. Wire into providers.py provide_input_checker() or provide_output_checker()
 
 Safety checkers are composed in providers.py — not autodiscovered into the
-pipeline automatically. Order and combination are security decisions.
+pipeline automatically. This is intentional and different from backends,
+audit backends, and decoders, which are autodiscovered.
+
+Why: checker order is a security decision. An entropy checker placed after
+a translation layer evaluates translated text, not the original. A guard
+placed before a translation layer evaluates non-English input directly.
+Autodiscovery cannot enforce ordering — a dropped file could silently land
+in the wrong position in the pipeline. Explicit wiring in providers.py
+makes the pipeline structure visible and auditable in one place.
+
+Editing providers.py is required. This is the deliberate cost of explicit
+control over a security-critical pipeline.
 
     class MyChecker(SafetyChecker):
         name = "my_checker"
@@ -196,6 +213,9 @@ class SafetyChecker(ABC):
                 — infrastructure or evaluation integrity failure
         """
         ...
+
+    def close(self) -> None:
+        """Override to release resources held by this checker at shutdown."""
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}()"

@@ -82,9 +82,11 @@ class PatternSafetyChecker(SafetyChecker):
     name = "pattern"
 
     def __init__(self, patterns: Optional[List[str]] = None):
-        # None or [] both mean "use defaults" — security-first.
+        # None means "use defaults" — security-first.
+        # Empty list is an explicit "no patterns" — respect the caller's intent.
+        # Coercion of [] → None for the config path happens in config.from_dict().
         # See module docstring for rationale.
-        raw_patterns = patterns if patterns else DEFAULT_PATTERNS
+        raw_patterns = patterns if patterns is not None else DEFAULT_PATTERNS
 
         self._patterns: List[re.Pattern] = []
 

@@ -40,11 +40,13 @@ class _FailBackend:
 class _AlwaysSafe:
     name = "always_safe"
     def check(self, t): return SafetyResult(safe=True)
+    def close(self): pass
     def __repr__(self): return "AlwaysSafe()"
 
 class _AlwaysUnsafe:
     name = "always_unsafe"
     def check(self, t): return SafetyResult(safe=False, reason="Test violation")
+    def close(self): pass
     def __repr__(self): return "AlwaysUnsafe()"
 
 class _AlwaysUnsafeWithMode:
@@ -53,6 +55,7 @@ class _AlwaysUnsafeWithMode:
         self._mode = failure_mode
     def check(self, t):
         return SafetyResult(safe=False, reason="Shell failure", failure_mode=self._mode)
+    def close(self): pass
     def __repr__(self): return f"AlwaysUnsafeWithMode({self._mode!r})"
 
 class _StubAudit:
@@ -378,6 +381,85 @@ class TestContextManager(unittest.TestCase):
         with cp:
             r = cp.run("Hello")
         self.assertTrue(r.safe)
+
+
+# ── Resource lifecycle ─────────────────────────────────────────────────────
+
+class TestResourceLifecycle(unittest.TestCase):
+    """close() must propagate to all owned resources in the correct order."""
+
+    def test_close_calls_checker_close(self):
+        """Checkers must be closed when Carapex closes."""
+        closed = []
+
+        class _TrackedChecker:
+            name = "tracked"
+            def check(self, t): return SafetyResult(safe=True)
+            def close(self): closed.append(self.name)
+            def __repr__(self): return "TrackedChecker()"
+
+        cp, _ = _make(
+            input_checker  = _TrackedChecker(),
+            output_checker = _TrackedChecker(),
+        )
+        cp.close()
+        self.assertEqual(len(closed), 2)
+
+    def test_close_calls_guard_backend_close_when_distinct(self):
+        """Separate guard backend must be closed when Carapex closes."""
+        closed = []
+
+        class _TrackedBackend(_SafeBackend):
+            def close(self): closed.append("guard_backend")
+
+        guard = _TrackedBackend()
+        audit = _StubAudit()
+        cp = Carapex(
+            system_prompt  = "You are a helpful assistant.",
+            backend        = _SafeBackend(),
+            input_checker  = _AlwaysSafe(),
+            output_checker = _AlwaysSafe(),
+            normaliser     = _StableNormaliser(),
+            audit          = audit,
+            guard_backend  = guard,
+        )
+        cp.close()
+        self.assertIn("guard_backend", closed)
+
+    def test_close_does_not_double_close_when_guard_is_none(self):
+        """When guard_backend is None (same as main), close() must not error."""
+        cp, _ = _make()
+        try:
+            cp.close()
+        except Exception as e:
+            self.fail(f"close() raised unexpectedly: {e}")
+
+    def test_checkers_closed_before_backends(self):
+        """Checkers must be closed before backends — they may still reference them."""
+        order = []
+
+        class _OrderedChecker:
+            name = "ordered"
+            def check(self, t): return SafetyResult(safe=True)
+            def close(self): order.append("checker")
+            def __repr__(self): return "OrderedChecker()"
+
+        class _OrderedBackend(_SafeBackend):
+            def close(self): order.append("backend")
+
+        audit = _StubAudit()
+        cp = Carapex(
+            system_prompt  = "You are a helpful assistant.",
+            backend        = _OrderedBackend(),
+            input_checker  = _OrderedChecker(),
+            output_checker = _OrderedChecker(),
+            normaliser     = _StableNormaliser(),
+            audit          = audit,
+        )
+        cp.close()
+        checker_indices = [i for i, v in enumerate(order) if v == "checker"]
+        backend_index   = order.index("backend")
+        self.assertTrue(all(i < backend_index for i in checker_indices))
 
 
 if __name__ == "__main__":

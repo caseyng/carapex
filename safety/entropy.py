@@ -26,7 +26,9 @@ Threshold:
     Default 5.8 bits/char. Above this threshold, no legitimate natural
     language prompt sits — even dense technical content rarely exceeds 5.5.
     Configurable via SafetyConfig.entropy_threshold.
-    Disabled by setting entropy_threshold to None or 0.0.
+    Disabled by setting entropy_threshold to None.
+    0.0 is NOT a disable signal — it blocks every input above 0.0 bits/char,
+    which in practice blocks all non-trivial content. Use None to disable.
 
 Minimum length:
     Entropy on short strings is statistically unreliable — a 10-character
@@ -69,6 +71,10 @@ class EntropyChecker(SafetyChecker):
     name = "entropy"
 
     def __init__(self, threshold: Optional[float], min_length: int):
+        if min_length < 0:
+            raise ValueError(
+                f"min_length must be >= 0, got {min_length}"
+            )
         self._threshold  = threshold
         self._min_length = min_length
 
