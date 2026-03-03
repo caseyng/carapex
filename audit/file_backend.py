@@ -56,15 +56,15 @@ class FileAuditBackend(AuditBackend):
                 json.dumps(record, ensure_ascii=False, default=str)
             )
         except OSError as e:
-                    # Disk full or handler closed — audit must never crash the pipeline.
-                    # Log to root logger (bypasses our FileHandler) so the signal reaches
-                    # whatever logging infrastructure the application has configured.
-                    # Silent loss of audit events in a security boundary is not acceptable.
-                    logging.getLogger().error(
-                        "Audit write failed — audit events are being lost. "
-                        "Check disk space and file permissions. Path: %r. Error: %s",
-                        self._log_path, e,
-                    )
+            # Disk full or handler closed — audit must never crash the pipeline.
+            # Log to root logger (bypasses our FileHandler) so the signal reaches
+            # whatever logging infrastructure the application has configured.
+            # Silent loss of audit events in a security boundary is not acceptable.
+            logging.getLogger().error(
+                "Audit write failed — audit events are being lost. "
+                "Check disk space and file permissions. Path: %r. Error: %s",
+                self._log_path, e,
+            )
 
     def close(self) -> None:
         for handler in self._logger.handlers[:]:

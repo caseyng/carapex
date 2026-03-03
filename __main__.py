@@ -45,6 +45,7 @@ def main():
     if args.init:
         from . import config
         config.write_default("config.json")
+        print("Default config written to config.json")
         print("Edit config.json, then run: python -m carapex --check")
         sys.exit(0)
 

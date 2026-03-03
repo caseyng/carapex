@@ -44,7 +44,6 @@ from typing import Optional
 
 from .base import TextTransformingChecker, SafetyResult
 from .script import ScriptResult
-from ..exceptions import PipelineInternalError
 
 logger = logging.getLogger(__name__)
 

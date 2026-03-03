@@ -107,8 +107,8 @@ def provide_input_checker(
     from .safety.composite   import CompositeSafetyChecker
 
     return CompositeSafetyChecker([
-        PatternSafetyChecker(cfg),
-        EntropyChecker(cfg),
+        PatternSafetyChecker(cfg.injection_patterns),
+        EntropyChecker(cfg.entropy_threshold, cfg.entropy_min_length),
         ScriptChecker(),
         TranslationLayer(backend),
         GuardSafetyChecker(backend, debug=debug),

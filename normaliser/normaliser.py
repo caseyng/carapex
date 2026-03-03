@@ -73,6 +73,8 @@ class Normaliser:
         if not text:
             return NormaliserResult(text=text, stable=True)
 
+        # At most max_passes + 1 entries — negligible at default settings.
+        # Reconsider if max_passes is increased significantly.
         seen = {text}
 
         for _ in range(self._max):

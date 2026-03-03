@@ -69,7 +69,7 @@ class TestPatternSafetyChecker(unittest.TestCase):
     """
 
     def setUp(self):
-        self.checker = PatternSafetyChecker(SafetyConfig())
+        self.checker = PatternSafetyChecker()
 
     def test_clean_prompt_safe(self):
         self.assertTrue(self.checker.check("Summarise this article.").safe)
@@ -148,20 +148,16 @@ class TestPatternSafetyChecker(unittest.TestCase):
     # ── Custom patterns ────────────────────────────────────────────────────
 
     def test_custom_pattern_used(self):
-        checker = PatternSafetyChecker(
-            SafetyConfig(injection_patterns=[r"SECRET_WORD"])
-        )
+        checker = PatternSafetyChecker(patterns=[r"SECRET_WORD"])
         self.assertFalse(checker.check("contains SECRET_WORD here").safe)
 
     def test_invalid_pattern_raises_configuration_error(self):
         # Invalid patterns must raise at construction, not silently degrade
         with self.assertRaises(ConfigurationError):
-            PatternSafetyChecker(SafetyConfig(injection_patterns=[r"[invalid"]))
+            PatternSafetyChecker(patterns=[r"[invalid"])
 
     def test_valid_custom_pattern_works(self):
-        checker = PatternSafetyChecker(
-            SafetyConfig(injection_patterns=[r"\[INST\]"])
-        )
+        checker = PatternSafetyChecker(patterns=[r"\[INST\]"])
         self.assertFalse(checker.check("[INST] override").safe)
 
 
@@ -170,18 +166,18 @@ class TestPatternSafetyChecker(unittest.TestCase):
 class TestEntropyChecker(unittest.TestCase):
 
     def test_natural_language_passes(self):
-        checker = EntropyChecker(SafetyConfig(entropy_threshold=5.8, entropy_min_length=10))
+        checker = EntropyChecker(threshold=5.8, min_length=10)
         r = checker.check("Hello, how are you today? I am doing well.")
         self.assertTrue(r.safe)
 
     def test_short_text_bypasses_check(self):
         # Too short for reliable entropy measurement
-        checker = EntropyChecker(SafetyConfig(entropy_threshold=5.8, entropy_min_length=50))
+        checker = EntropyChecker(threshold=5.8, min_length=50)
         r = checker.check("hi")
         self.assertTrue(r.safe)
 
     def test_high_entropy_blocked(self):
-        checker = EntropyChecker(SafetyConfig(entropy_threshold=5.8, entropy_min_length=10))
+        checker = EntropyChecker(threshold=5.8, min_length=10)
         # All printable ASCII — maximum variety, high entropy
         high_entropy = "".join(chr(i) for i in range(33, 127)) * 2
         r = checker.check(high_entropy)
@@ -190,13 +186,13 @@ class TestEntropyChecker(unittest.TestCase):
         self.assertIsNotNone(r.reason)
 
     def test_failure_mode_is_entropy_exceeded(self):
-        checker = EntropyChecker(SafetyConfig(entropy_threshold=5.8, entropy_min_length=10))
+        checker = EntropyChecker(threshold=5.8, min_length=10)
         high_entropy = "".join(chr(i) for i in range(33, 127)) * 2
         r = checker.check(high_entropy)
         self.assertEqual(r.failure_mode, "entropy_exceeded")
 
     def test_disabled_when_threshold_none(self):
-        checker = EntropyChecker(SafetyConfig(entropy_threshold=None))
+        checker = EntropyChecker(threshold=None, min_length=50)
         high_entropy = "".join(chr(i) for i in range(33, 127)) * 2
         r = checker.check(high_entropy)
         self.assertTrue(r.safe)
@@ -205,13 +201,13 @@ class TestEntropyChecker(unittest.TestCase):
         # threshold=0.0 is not a disable signal — it means block everything
         # above 0.0 bits/char, which in practice blocks everything non-trivial.
         # Only None disables entropy gating.
-        checker = EntropyChecker(SafetyConfig(entropy_threshold=0.0))
+        checker = EntropyChecker(threshold=0.0, min_length=10)
         high_entropy = "".join(chr(i) for i in range(33, 127)) * 2
         r = checker.check(high_entropy)
         self.assertFalse(r.safe)
 
     def test_reason_contains_entropy_value(self):
-        checker = EntropyChecker(SafetyConfig(entropy_threshold=5.8, entropy_min_length=10))
+        checker = EntropyChecker(threshold=5.8, min_length=10)
         high_entropy = "".join(chr(i) for i in range(33, 127)) * 2
         r = checker.check(high_entropy)
         self.assertIn("bits/char", r.reason)
@@ -522,7 +518,7 @@ class TestCompositeSafetyChecker(unittest.TestCase):
 
     def test_repr_contains_checker_names(self):
         checker = CompositeSafetyChecker([
-            PatternSafetyChecker(SafetyConfig())
+            PatternSafetyChecker()
         ])
         self.assertIn("PatternSafetyChecker", repr(checker))
 

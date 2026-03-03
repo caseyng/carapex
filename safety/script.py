@@ -22,10 +22,10 @@ Why not a hard gate:
     English. ScriptChecker enables that by detecting what language arrived.
 
 Fail-closed on detection failure:
-    If langdetect fails to identify the language (raises LangDetectException),
-    the result signals translation_needed=True — TranslationLayer will attempt
-    translation regardless. Better to translate unnecessarily than to pass
-    unidentified content directly to the guard.
+    If langdetect fails to identify the language (raises any exception during
+    detection), the result signals translation_needed=True — TranslationLayer
+    will attempt translation regardless. Better to translate unnecessarily than
+    to pass unidentified content directly to the guard.
 
 Dependency:
     langdetect — pure Python, offline, no tokens.
@@ -121,7 +121,7 @@ class ScriptChecker(SafetyChecker):
             )
 
         except Exception:
-            # Detection failed — treat as unknown, flag for translation.
+            # Any exception during detection — treat as unknown, flag for translation.
             # Fail toward translation rather than toward bypassing it.
             logger.warning(
                 "Language detection failed for input (length=%d) — "

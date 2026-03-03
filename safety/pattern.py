@@ -45,8 +45,8 @@ import logging
 import re
 from typing import List, Optional
 
-from .base import SafetyChecker, SafetyResult, SafetyConfig
-from ..exceptions import PipelineInternalError, ConfigurationError
+from .base import SafetyChecker, SafetyResult
+from ..exceptions import ConfigurationError
 
 logger = logging.getLogger(__name__)
 
@@ -81,10 +81,10 @@ class PatternSafetyChecker(SafetyChecker):
 
     name = "pattern"
 
-    def __init__(self, cfg: SafetyConfig):
+    def __init__(self, patterns: Optional[List[str]] = None):
         # None or [] both mean "use defaults" — security-first.
-        # See SafetyConfig docstring for rationale.
-        raw_patterns = cfg.injection_patterns if cfg.injection_patterns is not None else DEFAULT_PATTERNS
+        # See module docstring for rationale.
+        raw_patterns = patterns if patterns else DEFAULT_PATTERNS
 
         self._patterns: List[re.Pattern] = []
 

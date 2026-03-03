@@ -59,11 +59,14 @@ class OpenAICompatibleBackend(LLMBackend):
         self._max_tokens = cfg.max_tokens
         self._timeout    = cfg.request_timeout_s
         self._endpoint   = f"{self._base_url}/v1/chat/completions"
-        self._headers    = {"Content-Type": "application/json"}
         self._last_usage = {}
 
+        headers = {"Content-Type": "application/json"}
         if self._api_key:
-            self._headers["Authorization"] = f"Bearer {self._api_key}"
+            headers["Authorization"] = f"Bearer {self._api_key}"
+
+        self._session = self._requests.Session()
+        self._session.headers.update(headers)
 
     def chat(
         self,
@@ -87,9 +90,8 @@ class OpenAICompatibleBackend(LLMBackend):
             body["temperature"] = resolved_temp
 
         try:
-            resp = self._requests.post(
+            resp = self._session.post(
                 self._endpoint,
-                headers = self._headers,
                 json    = body,
                 timeout = self._timeout,
             )
@@ -114,7 +116,7 @@ class OpenAICompatibleBackend(LLMBackend):
 
     def health_check(self) -> bool:
         try:
-            resp = self._requests.get(
+            resp = self._session.get(
                 f"{self._base_url}/health", timeout=5
             )
             if resp.status_code == 200:
@@ -136,6 +138,9 @@ class OpenAICompatibleBackend(LLMBackend):
             self._requests.exceptions.Timeout,
         ):
             return False
+
+    def close(self) -> None:
+        self._session.close()
 
     def last_usage(self) -> dict:
         return self._last_usage

@@ -133,9 +133,11 @@ class Carapex:
         normaliser:     Normaliser,
         audit:          AuditBackend,
         debug:          bool = False,
+        guard_backend:  Optional[LLMBackend] = None,
     ):
         self._system_prompt  = system_prompt
         self._backend        = backend
+        self._guard_backend  = guard_backend
         self._input_checker  = input_checker
         self._output_checker = output_checker
         self._normaliser     = normaliser
@@ -286,6 +288,8 @@ class Carapex:
 
     def close(self) -> None:
         self._backend.close()
+        if self._guard_backend is not None:
+            self._guard_backend.close()
         self._audit.close()
 
     def __enter__(self) -> "Carapex":
@@ -295,11 +299,14 @@ class Carapex:
         self.close()
 
     def __repr__(self) -> str:
-        return (
-            f"Carapex(backend={self._backend!r}, "
-            f"input_checker={self._input_checker!r}, "
-            f"normaliser={self._normaliser!r})"
-        )
+        parts = [
+            f"backend={self._backend!r}",
+            f"input_checker={self._input_checker!r}",
+            f"normaliser={self._normaliser!r}",
+        ]
+        if self._guard_backend is not None:
+            parts.append(f"guard_backend={self._guard_backend!r}")
+        return f"Carapex({', '.join(parts)})"
 
     def _refused(
         self,

@@ -139,6 +139,7 @@ def build(cfg=None) -> Carapex:
         normaliser     = _normaliser,
         audit          = _audit,
         debug          = _cfg.debug,
+        guard_backend  = _guard_backend if _guard_backend is not _backend else None,
     )
 
 

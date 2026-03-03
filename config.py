@@ -179,7 +179,6 @@ def write_default(path: str) -> None:
 
     with open(path, "w", encoding="utf-8") as f:
         json.dump(template, f, indent=4)
-    print(f"Default config written to {path}")
 
 
 def explain() -> None:
@@ -227,6 +226,10 @@ def explain() -> None:
     print(f"                                        null or [] = use built-in DEFAULT_PATTERNS")
     print(f"                                        [...] = replace defaults entirely")
     print(f"                                        Invalid patterns raise ConfigurationError at startup")
+    print(f"    safety.entropy_threshold            default: null (entropy gating disabled)")
+    print(f"                                        null = entropy gating disabled entirely")
+    print(f"                                        0.0  = blocks everything non-trivial (not the same as null)")
+    print(f"                                        Recommended range: 3.5–5.5 for most deployments")
 
     print("\n  [audit]")
     print(f"    audit.backend                       options: {audit_reg.available()}")

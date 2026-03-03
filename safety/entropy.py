@@ -37,8 +37,9 @@ Minimum length:
 
 import math
 from collections import Counter
+from typing import Optional
 
-from .base import SafetyChecker, SafetyResult, SafetyConfig
+from .base import SafetyChecker, SafetyResult
 
 
 def _shannon_entropy(text: str) -> float:
@@ -67,9 +68,9 @@ class EntropyChecker(SafetyChecker):
 
     name = "entropy"
 
-    def __init__(self, cfg: SafetyConfig):
-        self._threshold  = cfg.entropy_threshold
-        self._min_length = cfg.entropy_min_length
+    def __init__(self, threshold: Optional[float], min_length: int):
+        self._threshold  = threshold
+        self._min_length = min_length
 
     def check(self, text: str) -> SafetyResult:
         """

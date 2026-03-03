@@ -127,5 +127,10 @@ class LlamaCppBackend(LLMBackend):
                 # close() method in the library.
                 pass
 
+    def health_check(self) -> bool:
+        # Model loads at construction time — if __init__ succeeded, the model
+        # is ready. No network round-trip needed; readiness is local state.
+        return self._model is not None
+
     def __repr__(self) -> str:
         return f"LlamaCppBackend(model={self._cfg.model_path!r})"
