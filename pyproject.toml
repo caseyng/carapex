@@ -1,0 +1,112 @@
+[build-system]
+requires      = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name        = "carapex"
+version     = "0.1.0"
+description = "Hardened prompt execution boundary for LLM applications. Security is baked in, not bolted on."
+readme      = "README.md"
+license     = { text = "MIT" }
+requires-python = ">=3.10"
+
+keywords = [
+    "llm", "security", "prompt-injection", "ai-safety",
+    "prompt-security", "jailbreak", "guardrails",
+]
+
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+
+# Core dependency — used by the default OpenAI-compatible backend.
+# langdetect and llama-cpp-python are optional — see extras below.
+dependencies = [
+    "requests>=2.28",
+]
+
+[project.optional-dependencies]
+
+# Required for multilingual input support (ScriptChecker + TranslationLayer).
+# Without this, carapex falls back to treating all input as needing translation.
+multilingual = [
+    "langdetect>=1.0.9",
+]
+
+# Required only if using the in-process llama.cpp backend.
+# Most deployments use an HTTP backend — this is not needed for Ollama,
+# llama-server, LM Studio, or the OpenAI API.
+local = [
+    "llama-cpp-python>=0.2",
+]
+
+# Everything — useful for development and full testing.
+all = [
+    "langdetect>=1.0.9",
+    "llama-cpp-python>=0.2",
+]
+
+# Development dependencies — not installed by end users.
+dev = [
+    "langdetect>=1.0.9",
+    "pytest>=7",
+    "mypy>=1.0",
+    "ruff>=0.4",
+]
+
+[project.urls]
+# Update these before publishing to PyPI.
+# Replace "your-org/carapex" with the actual GitHub repository path.
+Repository   = "https://github.com/caseyng/carapex"
+Issues       = "https://github.com/caseyng/carapex/issues"
+
+[project.scripts]
+carapex = "carapex.__main__:main"
+
+[tool.setuptools.packages.find]
+where   = ["."]
+include = ["carapex*"]
+exclude = ["carapex/tests*"]
+
+# ── Type checking ──────────────────────────────────────────────────────────
+
+[tool.mypy]
+python_version         = "3.10"
+strict                 = true
+ignore_missing_imports = true
+
+# ── Linting ────────────────────────────────────────────────────────────────
+
+[tool.ruff]
+target-version = "py310"
+line-length    = 100
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long — handled by formatter, not linter
+    "B008",  # do not perform function call in default argument
+]
+
+# ── Testing ────────────────────────────────────────────────────────────────
+
+[tool.pytest.ini_options]
+testpaths    = ["carapex/tests"]
+python_files = ["test_*.py"]
