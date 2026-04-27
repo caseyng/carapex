@@ -32,3 +32,6 @@ include = ["carapex*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "lingua: tests that require lingua-language-detector and are slow (deselect with -m 'not lingua')",
+]

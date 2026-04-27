@@ -140,3 +140,142 @@ class TestDecoders:
             # Should not raise for any string
             result = d.decode("\x00\xff\xfe broken bytes string")
             assert isinstance(result, str)
+
+
+class TestUrlPercentDecoderExtended:
+    """BUG-1 coverage: %uXXXX must be decoded, not silently skipped."""
+
+    def test_percent_u_single_char(self):
+        d = UrlPercentDecoder()
+        assert d.decode("%u0048") == "H"
+
+    def test_percent_u_full_word(self):
+        d = UrlPercentDecoder()
+        # "Hello" encoded as %uXXXX
+        assert d.decode("%u0048%u0065%u006C%u006C%u006F") == "Hello"
+
+    def test_percent_u_injection_token(self):
+        # [INST] encoded as %uXXXX — the bypass vector
+        d = UrlPercentDecoder()
+        encoded = "%u005B%u0049%u004E%u0053%u0054%u005D"
+        assert d.decode(encoded) == "[INST]"
+
+    def test_mixed_percent_xx_and_percent_u(self):
+        d = UrlPercentDecoder()
+        # %20 (standard space) and %u0048 (H) mixed
+        result = d.decode("hello%20%u0048ello")
+        assert result == "hello Hello"
+
+    def test_percent_u_uppercase(self):
+        d = UrlPercentDecoder()
+        assert d.decode("%U0048") == "H"
+
+    def test_standard_percent_xx_still_works(self):
+        d = UrlPercentDecoder()
+        assert d.decode("hello%20world") == "hello world"
+
+    def test_passthrough_no_encoding(self):
+        d = UrlPercentDecoder()
+        assert d.decode("plain text") == "plain text"
+
+    def test_invalid_percent_u_passthrough(self):
+        # %uXXXX where XXXX is not valid hex — should not crash
+        d = UrlPercentDecoder()
+        result = d.decode("%uZZZZ")
+        assert isinstance(result, str)
+
+
+class TestUnicodeEscapeDecoderExtended:
+    def test_capital_U_eight_char(self):
+        d = UnicodeEscapeDecoder()
+        # \U0001F600 = 😀 (grinning face)
+        assert d.decode(r"\U0001F600") == "\U0001F600"
+
+    def test_lowercase_x_two_char(self):
+        d = UnicodeEscapeDecoder()
+        assert d.decode(r"\x48\x65\x6C\x6C\x6F") == "Hello"
+
+    def test_mixed_escape_sequences(self):
+        d = UnicodeEscapeDecoder()
+        # H via \x48 and rest literal
+        assert d.decode(r"\x48ello") == "Hello"
+
+    def test_mixed_u_and_U(self):
+        d = UnicodeEscapeDecoder()
+        assert d.decode(r"H\U00000065") == "He"
+
+
+class TestBase64DecoderExtended:
+    def test_no_padding(self):
+        import base64
+        payload = "Hello from base64!"
+        # base64 without padding (strip trailing =)
+        encoded = base64.b64encode(payload.encode()).decode().rstrip("=")
+        d = Base64Decoder()
+        result = d.decode(encoded)
+        assert "Hello" in result
+
+    def test_double_padding(self):
+        import base64
+        # 1 byte → 2 base64 chars + "==" padding
+        payload = b"X"
+        encoded = base64.b64encode(payload).decode()
+        assert encoded.endswith("==")
+        # Pad to 16 chars minimum by repeating the encoded pattern
+        long_encoded = (encoded.rstrip("=") * 8)[:16]
+        padded = long_encoded + "=" * ((-len(long_encoded)) % 4)
+        d = Base64Decoder()
+        result = d.decode(padded)
+        assert isinstance(result, str)
+
+    def test_exactly_16_chars_decoded(self):
+        import base64
+        # Construct a payload that base64-encodes to exactly 16 chars
+        # 12 bytes → 16 base64 chars (12 * 4/3 = 16)
+        payload = b"123456789012"
+        encoded = base64.b64encode(payload).decode()
+        assert len(encoded) == 16
+        d = Base64Decoder()
+        result = d.decode(encoded)
+        assert result != encoded  # was decoded
+
+    def test_15_chars_not_decoded(self):
+        # 15 chars < 16 minimum → left unchanged
+        d = Base64Decoder()
+        short = "MTIzNDU2Nzg5MA"  # 14 chars
+        assert len(short) == 14
+        assert d.decode(short) == short
+
+    def test_non_utf8_output_left_unchanged(self):
+        import base64
+        # Bytes that decode to non-UTF-8 binary (high bytes)
+        raw = bytes(range(200, 216))  # 16 bytes → 24 base64 chars
+        encoded = base64.b64encode(raw).decode()
+        d = Base64Decoder()
+        result = d.decode(encoded)
+        # Cannot decode to UTF-8 → original token left unchanged
+        assert result == encoded
+
+
+class TestNormalisedEndToEnd:
+    def test_percent_u_encoded_injection_blocked(self):
+        """BUG-1 end-to-end: %uXXXX-encoded [INST] must decode then be blocked."""
+        import carapex.normaliser  # noqa: F401
+        from carapex.core.registry import all_decoder_names, get_decoder
+        from carapex.normaliser.base import Normaliser
+        from carapex.safety.pattern import PatternChecker
+
+        decoders = [get_decoder(n)() for n in all_decoder_names()]
+        normaliser = Normaliser(decoders=decoders, max_passes=5)
+
+        # [INST] encoded as %uXXXX
+        encoded_inst = "%u005B%u0049%u004E%u0053%u0054%u005D"
+        norm_result = normaliser.normalise(encoded_inst)
+        assert norm_result.stable is True
+        assert norm_result.text == "[INST]"
+
+        # Pattern checker must now block it
+        checker = PatternChecker()
+        safety = checker.inspect(norm_result.text)
+        assert safety.safe is False
+        assert safety.failure_mode == "safety_violation"

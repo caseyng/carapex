@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 
-from carapex.core.types import SafetyResult
+from carapex.core.types import SafetyResult, ScriptResult
 from carapex.safety.base import SafetyChecker
 
 log = logging.getLogger(__name__)
@@ -56,7 +56,7 @@ class CheckerCoordinator:
             return SafetyResult(safe=True), text
 
         working = text
-        prior_result: SafetyResult | None = None
+        prior_result: SafetyResult | ScriptResult | None = None
 
         for checker in self._checkers:
             if prior_result is not None and hasattr(checker, "set_prior_result"):

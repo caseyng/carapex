@@ -73,16 +73,27 @@ class HtmlEntityDecoder(Decoder):
 
 @register_decoder
 class UrlPercentDecoder(Decoder):
-    """Decodes URL percent-encoded sequences: %XX, %uXXXX."""
+    """Decodes URL percent-encoded sequences: %XX and %uXXXX (non-standard Microsoft extension)."""
 
     name = "url_percent"
 
-    _PATTERN = re.compile(r"%[0-9A-Fa-f]{2}|%u[0-9A-Fa-f]{4}")
+    _PATTERN = re.compile(r"%[0-9A-Fa-f]{2}|%u[0-9A-Fa-f]{4}", re.IGNORECASE)
+    _PERCENT_U = re.compile(r"%u([0-9A-Fa-f]{4})", re.IGNORECASE)
+
+    @staticmethod
+    def _replace_percent_u(m: re.Match[str]) -> str:
+        try:
+            return chr(int(m.group(1), 16))
+        except (ValueError, OverflowError):
+            return m.group(0)
 
     def decode(self, text: str) -> str:
         if not self._PATTERN.search(text):
             return text
         try:
+            # Decode %uXXXX first (not handled by urllib.parse.unquote)
+            text = self._PERCENT_U.sub(self._replace_percent_u, text)
+            # Decode standard %XX sequences
             return urllib.parse.unquote(text)
         except Exception:  # noqa: BLE001
             return text

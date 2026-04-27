@@ -233,6 +233,11 @@ class Carapex:
         _try_close(self._input_coordinator, "InputCoordinator")
         _try_close(self._output_coordinator, "OutputCoordinator")
 
+        if self._input_guard is not None:
+            _try_close(self._input_guard, "InputGuardChecker")
+        if self._output_guard is not None:
+            _try_close(self._output_guard, "OutputGuardChecker")
+
         for llm in self._llm_instances:
             _try_close(llm, f"LLM({llm!r})")
 
@@ -738,6 +743,10 @@ def _extract_last_user_message(messages: list[dict[str, Any]]) -> str | None:
             content = msg.get("content")
             if content is None:
                 raise ValueError("Last user message has null content")
+            if not isinstance(content, str):
+                raise TypeError(
+                    f"Last user message content must be a string, got {type(content).__name__}"
+                )
             return content
     return None
 
@@ -786,12 +795,27 @@ def _result_to_http_response(
 def _emit_init(instance: Carapex, config: CarapexConfig, instance_id: str) -> None:
     """Emit the carapex_init audit record (§18)."""
     main_url = config.main_llm.get("url", "unknown")
-    instance._auditor.log("carapex_init", {
-        "instance_id": instance_id,
-        "version": "0.13.0",
-        "main_llm": main_url,
-        "input_guard_llm": (config.input_guard_llm or {}).get("url", main_url),
-        "output_guard_llm": (config.output_guard_llm or {}).get("url", main_url),
-        "translator_llm": (config.translator_llm or {}).get("url", main_url),
-        "debug": config.debug,
-    })
+    input_checker_names = [c.name for c in instance._input_coordinator._checkers]
+    if instance._input_guard is not None:
+        input_checker_names.append(instance._input_guard.name)
+    output_checker_names = [c.name for c in instance._output_coordinator._checkers]
+    if instance._output_guard is not None:
+        output_checker_names.append(instance._output_guard.name)
+    try:
+        instance._auditor.log("carapex_init", {
+            "instance_id": instance_id,
+            "version": "0.13.0",
+            "main_llm": main_url,
+            "input_guard_llm": (config.input_guard_llm or {}).get("url", main_url),
+            "output_guard_llm": (config.output_guard_llm or {}).get("url", main_url),
+            "translator_llm": (config.translator_llm or {}).get("url", main_url),
+            "input_checker": input_checker_names,
+            "output_checker": output_checker_names,
+            "normaliser": {
+                "decoders": [d.name for d in instance._normaliser._decoders],
+                "max_passes": instance._normaliser._max_passes,
+            },
+            "debug": config.debug,
+        })
+    except Exception:  # noqa: BLE001 — init log failure never propagates
+        pass
