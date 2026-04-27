@@ -105,7 +105,7 @@ class PatternChecker(SafetyChecker):
                 return SafetyResult(
                     safe=False,
                     failure_mode="safety_violation",
-                    reason=f"Matched injection pattern: {pattern.pattern!r}",
+                    reason="Input contains a disallowed pattern",
                 )
         return SafetyResult(safe=True)
 
@@ -134,7 +134,7 @@ class OutputPatternChecker(SafetyChecker):
                 return SafetyResult(
                     safe=False,
                     failure_mode="safety_violation",
-                    reason=f"Matched output pattern: {pattern.pattern!r}",
+                    reason="Response contains a disallowed pattern",
                 )
         return SafetyResult(safe=True)
 

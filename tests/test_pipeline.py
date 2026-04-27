@@ -17,7 +17,6 @@ import pytest
 
 from carapex.audit.memory_auditor import InMemoryAuditor
 from carapex.core.exceptions import PipelineInternalError
-from carapex.core.types import EvaluationResult, SafetyResult
 from tests.conftest import (
     CorruptGuardLLM,
     SafeGuardLLM,
@@ -143,14 +142,13 @@ class TestContentRefusals:
         assert result.failure_mode == "safety_violation"
 
     def test_entropy_exceeded_blocks(self):
-        import base64, os
-        cx = make_carapex()
-        # Craft text that's long enough and high entropy
-        high_entropy = base64.b64encode(os.urandom(200)).decode()
-        result = cx.evaluate(make_messages(high_entropy))
-        # May or may not exceed threshold depending on actual entropy
-        # Test that the checker ran without raising
-        assert isinstance(result, EvaluationResult)
+        # 26 distinct chars repeated gives ~4.7 bits/char, which exceeds threshold=1.0.
+        # Using a fixed threshold avoids dependence on random data.
+        cx = make_carapex(entropy_threshold=1.0)
+        text = "abcdefghijklmnopqrstuvwxyz" * 4  # 104 chars, above min_length=50
+        result = cx.evaluate(make_messages(text))
+        assert result.safe is False
+        assert result.failure_mode == "entropy_exceeded"
 
     def test_main_llm_not_called_when_input_blocked(self):
         """Main LLM must not be called when input check fails (§11 early termination)."""
@@ -194,7 +192,6 @@ class TestPreconditionViolations:
 
 class TestPipelineInternalError:
     def test_raising_component_wraps_in_pipeline_internal_error(self):
-        from carapex.carapex import Carapex
         from carapex.normaliser.base import Normaliser
 
         class BuggyNormaliser(Normaliser):

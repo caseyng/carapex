@@ -16,6 +16,7 @@ Failure conditions that produce translation_failed (§5):
 from __future__ import annotations
 
 import logging
+import threading
 
 from carapex.core.types import SafetyResult, ScriptResult
 from carapex.llm.base import LLMProvider
@@ -38,8 +39,23 @@ class Translator(TextTransformingChecker):
     def __init__(self, llm: LLMProvider, temperature: float = 0.0) -> None:
         self._llm = llm
         self._temperature = temperature
-        self._prior_result: ScriptResult | None = None
-        self._output_text: str | None = None
+        self._local = threading.local()
+
+    @property
+    def _prior_result(self) -> ScriptResult | None:
+        return getattr(self._local, "prior_result", None)
+
+    @_prior_result.setter
+    def _prior_result(self, value: ScriptResult | None) -> None:
+        self._local.prior_result = value
+
+    @property
+    def _output_text(self) -> str | None:
+        return getattr(self._local, "output_text", None)
+
+    @_output_text.setter
+    def _output_text(self, value: str | None) -> None:
+        self._local.output_text = value
 
     # ------------------------------------------------------------------
     # TextTransformingChecker protocol

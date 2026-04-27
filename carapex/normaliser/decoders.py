@@ -38,12 +38,18 @@ class UnicodeEscapeDecoder(Decoder):
         r"|\\x[0-9A-Fa-f]{2}"
     )
 
+    @staticmethod
+    def _replace(m: re.Match[str]) -> str:
+        try:
+            return chr(int(m.group(0)[2:], 16))
+        except (ValueError, OverflowError):
+            return m.group(0)
+
     def decode(self, text: str) -> str:
         if not self._PATTERN.search(text):
             return text
         try:
-            # encode to bytes then decode with unicode_escape
-            return text.encode("raw_unicode_escape").decode("unicode_escape")
+            return self._PATTERN.sub(self._replace, text)
         except Exception:  # noqa: BLE001
             return text
 

@@ -121,7 +121,6 @@ class TestCheckerCoordinator:
 
     def test_text_transforming_checker_updates_working_text(self):
         """Coordinator must call get_output_text() and update working text."""
-        from carapex.core.types import ScriptResult
         from carapex.safety.base import SafetyChecker, TextTransformingChecker
 
         class UpperCaseTransformer(TextTransformingChecker):

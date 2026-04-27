@@ -2,7 +2,6 @@
 
 import pytest
 
-from carapex.core.types import SafetyResult
 from carapex.safety.entropy import EntropyChecker, _shannon_entropy
 from carapex.safety.guard import _parse_guard_response
 from carapex.safety.pattern import OutputPatternChecker, PatternChecker
@@ -16,10 +15,8 @@ class TestEntropyChecker:
         assert result.safe is True
 
     def test_high_entropy_blocked(self):
-        import secrets
-        high_entropy = secrets.token_hex(100)  # 200 hex chars, ~4 bits/char but random
-        # Force high entropy with truly random bytes encoded as base64
-        import base64, os
+        import base64
+        import os
         text = base64.b64encode(os.urandom(100)).decode()
         checker = EntropyChecker(threshold=4.0, min_length=10)
         result = checker.inspect(text)

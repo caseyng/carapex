@@ -35,10 +35,19 @@ class OpenAIProvider(LLMProvider):
 
     name = "openai"
 
-    def __init__(self, url: str, model: str, timeout: float = 60.0) -> None:
+    def __init__(
+        self,
+        url: str,
+        model: str,
+        timeout: float = 60.0,
+        max_retries: int = 3,
+        retry_delay: float = 1.0,
+    ) -> None:
         self._url = url.rstrip("/")
         self._model = model
         self._timeout = timeout
+        self._max_retries = max_retries
+        self._retry_delay = retry_delay
         self._client = httpx.Client(timeout=timeout)
 
     # ------------------------------------------------------------------
@@ -87,19 +96,31 @@ class OpenAIProvider(LLMProvider):
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
 
-        try:
-            resp = self._client.post(
-                f"{self._url}/v1/chat/completions",
-                json=payload,
-                headers=headers,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-        except Exception as e:  # noqa: BLE001 — never raise per contract
-            log.debug("LLM call failed: %s", e)
-            return None
+        for attempt in range(self._max_retries + 1):
+            if attempt > 0:
+                time.sleep(self._retry_delay * (2 ** (attempt - 1)))
+            try:
+                resp = self._client.post(
+                    f"{self._url}/v1/chat/completions",
+                    json=payload,
+                    headers=headers,
+                )
+                resp.raise_for_status()
+                return self._parse(resp.json())
+            except (httpx.TimeoutException, httpx.NetworkError) as e:
+                log.debug("LLM call transient error (attempt %d/%d): %s", attempt + 1, self._max_retries + 1, e)
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 429 or e.response.status_code >= 500:
+                    log.debug("LLM call retryable status (attempt %d/%d): %s", attempt + 1, self._max_retries + 1, e)
+                else:
+                    log.debug("LLM call failed (non-retryable %d): %s", e.response.status_code, e)
+                    return None
+            except Exception as e:  # noqa: BLE001 — never raise per contract
+                log.debug("LLM call failed: %s", e)
+                return None
 
-        return self._parse(data)
+        log.debug("LLM call failed after %d attempts", self._max_retries + 1)
+        return None
 
     @staticmethod
     def _parse(data: dict[str, Any]) -> CompletionResult | None:
@@ -136,7 +157,13 @@ class OpenAIProvider(LLMProvider):
             raise ValueError("OpenAIProvider config missing 'url'")
         if not model:
             raise ValueError("OpenAIProvider config missing 'model'")
-        return cls(url=url, model=model, timeout=float(raw.get("timeout", 60.0)))
+        return cls(
+            url=url,
+            model=model,
+            timeout=float(raw.get("timeout", 60.0)),
+            max_retries=int(raw.get("max_retries", 3)),
+            retry_delay=float(raw.get("retry_delay", 1.0)),
+        )
 
     @classmethod
     def default_config(cls) -> dict[str, Any]:

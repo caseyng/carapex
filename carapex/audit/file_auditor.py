@@ -33,7 +33,7 @@ class FileAuditor(Auditor):
     name = "file"
 
     def __init__(self, path: str) -> None:
-        self._path = Path(path)
+        self._path = Path(path).resolve()
         self._lock = threading.Lock()
         self._closed = False
         # Open in append mode — survives restart without losing prior records

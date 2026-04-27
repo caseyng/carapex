@@ -33,7 +33,7 @@ _PROMPTS_DIR = Path(__file__).parent / "prompts"
 def _load_prompt(path: str | None, default_filename: str) -> str:
     """Load a system prompt from a file path or the built-in default."""
     if path is not None:
-        p = Path(path)
+        p = Path(path).resolve()
         if not p.exists():
             raise FileNotFoundError(f"Guard system prompt not found: {path!r}")
         text = p.read_text(encoding="utf-8").strip()
@@ -104,36 +104,15 @@ class InputGuardChecker(SafetyChecker):
     def inspect(self, text: str) -> SafetyResult:
         if text is None:
             raise ValueError("InputGuardChecker.inspect() received None")
-
-        delimiter = _generate_delimiter()
-
-        # Wrap evaluated content between per-call delimiters
-        user_content = (
-            f"Evaluate the text between the delimiters.\n"
-            f"START_DELIMITER_{delimiter}\n"
-            f"{text}\n"
-            f"END_DELIMITER_{delimiter}"
-        )
-
-        messages = [
-            {"role": "system", "content": self._system_prompt},
-            {"role": "user", "content": user_content},
-        ]
-
-        result = self._llm.complete_with_temperature(
-            messages, self._temperature, api_key=""
-        )
-
-        if result is None:
-            return SafetyResult(safe=False, failure_mode="guard_unavailable")
-
-        return _parse_guard_response(result.content)
+        return self._call_guard(text, api_key="")
 
     def inspect_with_key(self, text: str, api_key: str) -> SafetyResult:
         """Variant used by the orchestrator to pass the caller's api_key."""
         if text is None:
             raise ValueError("InputGuardChecker.inspect_with_key() received None")
+        return self._call_guard(text, api_key=api_key)
 
+    def _call_guard(self, text: str, api_key: str) -> SafetyResult:
         delimiter = _generate_delimiter()
         user_content = (
             f"Evaluate the text between the delimiters.\n"
@@ -178,30 +157,15 @@ class OutputGuardChecker(SafetyChecker):
     def inspect(self, text: str) -> SafetyResult:
         if text is None:
             raise ValueError("OutputGuardChecker.inspect() received None")
-
-        delimiter = _generate_delimiter()
-        user_content = (
-            f"Evaluate the response between the delimiters.\n"
-            f"START_DELIMITER_{delimiter}\n"
-            f"{text}\n"
-            f"END_DELIMITER_{delimiter}"
-        )
-        messages = [
-            {"role": "system", "content": self._system_prompt},
-            {"role": "user", "content": user_content},
-        ]
-        result = self._llm.complete_with_temperature(
-            messages, self._temperature, api_key=""
-        )
-        if result is None:
-            return SafetyResult(safe=False, failure_mode="guard_unavailable")
-        return _parse_guard_response(result.content)
+        return self._call_guard(text, api_key="")
 
     def inspect_with_key(self, text: str, api_key: str) -> SafetyResult:
         """Variant used by the orchestrator to pass the caller's api_key."""
         if text is None:
             raise ValueError("OutputGuardChecker.inspect_with_key() received None")
+        return self._call_guard(text, api_key=api_key)
 
+    def _call_guard(self, text: str, api_key: str) -> SafetyResult:
         delimiter = _generate_delimiter()
         user_content = (
             f"Evaluate the response between the delimiters.\n"

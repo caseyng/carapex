@@ -45,7 +45,7 @@ class ScriptChecker(SafetyChecker):
             .build()
         )
 
-    def inspect(self, text: str) -> ScriptResult:
+    def inspect(self, text: str) -> ScriptResult:  # type: ignore[override]
         if text is None:
             raise ValueError("ScriptChecker.inspect() received None")
 

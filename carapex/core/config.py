@@ -14,7 +14,6 @@ reads all fields and passes extracted values to components directly.
 from __future__ import annotations
 
 import json
-import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -117,7 +116,6 @@ class CarapexConfig:
         are present with their default values and inline comments explaining
         each security-relevant field.
         """
-        from carapex.core.registry import all_decoder_names
 
         default = {
             "main_llm": {
@@ -150,7 +148,7 @@ class CarapexConfig:
             },
             "server": {
                 "type": "fastapi",
-                "host": "0.0.0.0",
+                "host": "127.0.0.1",
                 "port": 8000,
                 "workers": 1,
             },

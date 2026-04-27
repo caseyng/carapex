@@ -32,7 +32,7 @@ class FastAPIBackend(ServerBackend):
 
     def __init__(
         self,
-        host: str = "0.0.0.0",
+        host: str = "127.0.0.1",
         port: int = 8000,
         workers: int = 1,
     ) -> None:
@@ -148,7 +148,7 @@ class FastAPIBackend(ServerBackend):
     @classmethod
     def from_config(cls, raw: dict[str, Any]) -> "FastAPIBackend":
         return cls(
-            host=raw.get("host", "0.0.0.0"),
+            host=raw.get("host", "127.0.0.1"),
             port=int(raw.get("port", 8000)),
             workers=int(raw.get("workers", 1)),
         )

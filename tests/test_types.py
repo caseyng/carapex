@@ -5,7 +5,6 @@ import pytest
 from carapex.core.types import (
     CompletionResult,
     EvaluationResult,
-    NormaliserResult,
     SafetyResult,
     ScriptResult,
     UsageResult,

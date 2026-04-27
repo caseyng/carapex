@@ -8,6 +8,7 @@ pytest fixtures wire them up.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import pytest
@@ -97,7 +98,7 @@ class UnsafeGuardLLM(StubLLM):
     name = "_unsafe_guard"
 
     def __init__(self, reason: str = "Detected injection attempt") -> None:
-        super().__init__(response=f'{{"safe": false, "reason": "{reason}"}}')
+        super().__init__(response=json.dumps({"safe": False, "reason": reason}))
 
 
 class CorruptGuardLLM(StubLLM):
@@ -158,6 +159,7 @@ def make_carapex(
     output_guard_llm: LLMProvider | None = None,
     auditor: InMemoryAuditor | None = None,
     output_guard_enabled: bool = True,
+    entropy_threshold: float = 5.8,
 ) -> Any:
     """Construct a Carapex instance directly (bypassing build()) for unit testing.
 
@@ -187,7 +189,7 @@ def make_carapex(
     output_guard = OutputGuardChecker(llm=_out_guard, temperature=0.1) if output_guard_enabled else None
 
     input_coordinator = CheckerCoordinator([
-        EntropyChecker(),
+        EntropyChecker(threshold=entropy_threshold),
         PatternChecker(),
     ])
     output_coordinator = CheckerCoordinator([OutputPatternChecker()])

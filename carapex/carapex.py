@@ -31,14 +31,13 @@ import logging
 import secrets
 import time
 import uuid
-from datetime import datetime, timezone
 from typing import Any
 
 from carapex.audit.base import Auditor
 from carapex.core.config import CarapexConfig
 from carapex.core.exceptions import ConfigurationError, PipelineInternalError
 from carapex.core.registry import get_auditor, get_decoder, get_llm, get_server, all_decoder_names
-from carapex.core.types import EvaluationResult, UsageResult
+from carapex.core.types import EvaluationResult
 from carapex.llm.base import LLMProvider
 from carapex.normaliser.base import Normaliser
 from carapex.safety.coordinator import CheckerCoordinator
@@ -62,6 +61,12 @@ _INFRA_FAILURE_MODES = frozenset({
 })
 
 _BLOCKED_CONTENT = "I'm unable to process this request."
+
+
+def _sanitize_reason(reason: str) -> str:
+    """Strip control characters and truncate to prevent log injection by downstream consumers."""
+    cleaned = reason.replace("\n", " ").replace("\r", " ")
+    return cleaned[:200]
 
 
 class Carapex:
@@ -483,15 +488,6 @@ def build(config: CarapexConfig) -> Carapex:
         safety_cfg = config.safety or {}
         output_guard_enabled = bool(safety_cfg.get("output_guard_enabled", True))
 
-        if output_guard_enabled and output_guard_llm_cfg:
-            raise ConfigurationError(
-                "output_guard_llm is configured but output_guard_enabled is True. "
-                "If output_guard_enabled is True and you want a dedicated output guard LLM, "
-                "set output_guard_llm separately. "
-                "If you want to disable output guard entirely, set output_guard_enabled: false "
-                "and remove output_guard_llm."
-            )
-
         # Resolve output guard LLM
         if output_guard_enabled:
             out_guard_llm = (
@@ -659,7 +655,7 @@ def _build_llm(cfg: dict[str, Any], field_name: str) -> LLMProvider:
             f"{e}"
         ) from e
     try:
-        return cls.from_config(cfg)
+        return cls.from_config(cfg)  # type: ignore[attr-defined]
     except Exception as e:
         raise ConfigurationError(f"Failed to construct '{field_name}': {e}") from e
 
@@ -676,7 +672,6 @@ def _build_normaliser(cfg: dict[str, Any]) -> Normaliser:
     # Import to trigger decoder autodiscovery
     import carapex.normaliser  # noqa: F401
 
-    from carapex.core.registry import all_decoder_names, get_decoder
 
     if decoder_names is None:
         # Use all registered decoders in registration order
@@ -704,7 +699,7 @@ def _build_auditor(cfg: dict[str, Any]) -> Auditor:
             f"audit.type value {auditor_type!r} is not a registered Auditor. {e}"
         ) from e
     try:
-        return cls.from_config(cfg)
+        return cls.from_config(cfg)  # type: ignore[attr-defined]
     except Exception as e:
         raise ConfigurationError(f"Failed to construct auditor: {e}") from e
 
@@ -720,7 +715,7 @@ def _build_server(cfg: dict[str, Any]) -> ServerBackend:
             f"server.type value {server_type!r} is not a registered ServerBackend. {e}"
         ) from e
     try:
-        return cls.from_config(cfg)
+        return cls.from_config(cfg)  # type: ignore[attr-defined]
     except Exception as e:
         raise ConfigurationError(f"Failed to construct ServerBackend: {e}") from e
 
@@ -773,7 +768,7 @@ def _result_to_http_response(
         }
 
     # Blocked — synthetic assistant message with finish_reason="content_filter"
-    content = result.reason if result.reason else _BLOCKED_CONTENT
+    content = _sanitize_reason(result.reason) if result.reason else _BLOCKED_CONTENT
     return {
         "id": response_id,
         "object": "chat.completion",
